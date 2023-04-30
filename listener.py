@@ -79,9 +79,10 @@ if __name__ == '__main__':
     # Guess some defaults
     instrument_id = 22 # FRAM-Auger
 
-    if os.path.exists('.token'):
+    token_path = os.path.join(os.path.dirname(__file__), '.token')
+    if os.path.exists(token_path):
         # Load the token from file
-        token = file_read('.token').strip()
+        token = file_read(token_path).strip()
     else:
         token = None
 
