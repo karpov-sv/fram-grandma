@@ -9,6 +9,20 @@ import json
 
 from astropy.time import Time, TimeDelta
 from astropy import units as u
+from astropy.table import Table
+
+def plan_basename(plan, base=None):
+    """
+    Get the filename for this plan
+    """
+
+    # Sanitize plan name to be used as filename
+    planname = plan['plan_name'].replace(' ', '_')
+
+    if base:
+        planname = os.path.join(base, planname)
+
+    return planname
 
 # Simple writing of some data to file
 def file_write(filename, contents=None, append=False):
@@ -23,6 +37,21 @@ def file_write(filename, contents=None, append=False):
 def file_read(filename):
     with open(filename, 'r') as f:
         return f.read()
+
+
+def process_plan(plan, options={}):
+    # Individual fields inside the plan
+    fields = Table([{**_['field'],  **{__: _[__] for __ in ['weight', 'exposure_time', 'filt']}}
+                    for _ in plan['planned_observations']])
+
+    fields = fields[['id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
+
+    # Store them to a separate text file alongside with the plan
+    fields_name = plan_basename(plan, base=options.base)
+    fields_name = fields_name + '.fields'
+
+    fields.write(fields_name, format='ascii.commented_header', overwrite=True)
+    print(f"{len(fields)} fields to be observed stored to {fields_name}")
 
 def listen(options={}):
     print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
@@ -57,9 +86,7 @@ def listen(options={}):
             # print('Localization', req['localization_id'], 'event', req['gcnevent_id'])
 
             for plan in req['observation_plans']:
-                # Sanitize plan name to be used as filename
-                planname = plan['plan_name'].replace(' ', '_')
-                planname = os.path.join(options.base, planname) + '.json'
+                planname = plan_basename(plan, base=options.base) + '.json'
 
                 if os.path.exists(planname):
                     # We already know this plan
@@ -68,8 +95,12 @@ def listen(options={}):
                 print(f"New plan {plan['id']} / {plan['plan_name']} for localization {req['localization_id']} - {len(plan['planned_observations'])} observations")
                 print(f"stored to {planname}")
 
+                # Store the original plan to the file system
                 os.makedirs(options.base, exist_ok=True)
                 file_write(planname, json.dumps(plan, indent=4))
+
+                # Now we should do something reasonable with the plan, e.g. notify the telescope or so
+                process_plan(plan, options=options)
 
         time.sleep(options.delay)
 
