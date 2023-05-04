@@ -44,6 +44,10 @@ def process_plan(plan, options={}):
     fields = Table([{**_['field'],  **{__: _[__] for __ in ['weight', 'exposure_time', 'filt']}}
                     for _ in plan['planned_observations']])
 
+    if not len(fields):
+        # Empty plan?..
+        return
+
     fields = fields[['id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
 
     # Store them to a separate text file alongside with the plan
