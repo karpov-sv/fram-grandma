@@ -8,3 +8,5 @@ It is designed to operate directly at the telescope machines, and thus to be as 
 It requires SkyPortal API access token to be provided either by command-line argument (`-t`), or in a text file `.token` placed in the same folder as the script.
 
 It stores the original plans as JSON files in a dedicated folder. Alongside them, the lists of fields to be observed by the telescope are stored as simple text files.
+
+ - plans.py - simple visibility checker for observing plans that uses telescope connection to get its latitude, longitude etc.

@@ -11,6 +11,8 @@ from astropy.time import Time, TimeDelta
 from astropy import units as u
 from astropy.table import Table
 
+from telescope import get_horizon, send_email
+
 def plan_basename(plan, base=None):
     """
     Get the filename for this plan
@@ -38,8 +40,7 @@ def file_read(filename):
     with open(filename, 'r') as f:
         return f.read()
 
-
-def process_plan(plan, options={}):
+def plan_fields(plan):
     # Individual fields inside the plan
     fields = Table([{**_['field'],  **{__: _[__] for __ in ['weight', 'exposure_time', 'filt']}}
                     for _ in plan['planned_observations']])
@@ -49,6 +50,11 @@ def process_plan(plan, options={}):
         return
 
     fields = fields[['id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
+
+    return fields
+
+def process_plan(plan, options={}):
+    fields = plan_fields(plan)
 
     # Store them to a separate text file alongside with the plan
     fields_name = plan_basename(plan, base=options.base)
@@ -110,9 +116,15 @@ def listen(options={}):
 
 if __name__ == '__main__':
     from optparse import OptionParser
+    import platform
 
     # Guess some defaults
-    instrument_id = 22 # FRAM-Auger
+    if platform.node() == 'cta-n':
+        instrument_id = 23 # FRAM-CTA-N
+    else:
+        instrument_id = 22 # FRAM-Auger
+
+    api_url = 'http://localhost:8889' # Telescope RTS2 API URL
 
     token_path = os.path.join(os.path.dirname(__file__), '.token')
     if os.path.exists(token_path):
@@ -130,6 +142,10 @@ if __name__ == '__main__':
     parser.add_option('-d', '--delay', help='Delay between the requests', action='store', dest='delay', type='int', default=10)
 
     parser.add_option('-i', '--instrument', help='Only accept packets for this instrument (SkyPortal ID)', action='store', dest='instrument', type='int', default=instrument_id)
+
+    parser.add_option('-a', '--api', help='Base URL for telescope RTS2 API', action='store', dest='api', default=api_url)
+    parser.add_option('-u', '--username', help='Username', action='store', dest='username', default='karpov')
+    parser.add_option('-p', '--password', help='Password', action='store', dest='password', default='1')
 
     (options,args) = parser.parse_args()
 
