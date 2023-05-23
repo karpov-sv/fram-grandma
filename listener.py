@@ -85,7 +85,15 @@ def listen(options={}):
                   "status": "complete",
                   "includePlannedObservations" : True}
 
-        result = requests.get(url, headers=headers, params=params)
+        try:
+            result = requests.get(url, headers=headers, params=params)
+        except KeyboardInterrupt:
+            raise
+        except:
+            import traceback
+            traceback.print_exc()
+            time.sleep(options.delay)
+            continue
 
         if result.status_code != 200:
             print(f'Reply code {result.status_code} while requesting {url}')
