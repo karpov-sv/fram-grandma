@@ -45,7 +45,7 @@ def send_email(message, to='karpov.sv@gmail.com', sender='focuser@localhost', su
         msg.attach(MIMEText(message))
 
         for filename in attachments:
-            with open(filename, 'r') as fp:
+            with open(filename, 'rb') as fp:
                 ctype, encoding = mimetypes.guess_type(filename)
                 if ctype is None or encoding is not None:
                     # No guess could be made, or the file is encoded (compressed), so
@@ -65,7 +65,7 @@ def send_email(message, to='karpov.sv@gmail.com', sender='focuser@localhost', su
                     data.set_payload(fp.read())
                     encoders.encode_base64(data)
 
-            data.add_header('Content-Disposition', 'attachment', filename=posixpath.split(filename)[-1])
+            data.add_header('Content-Disposition', 'attachment', filename=os.path.split(filename)[-1])
             msg.attach(data)
 
     else:
@@ -76,5 +76,6 @@ def send_email(message, to='karpov.sv@gmail.com', sender='focuser@localhost', su
     msg['To'] = to
 
     s = smtplib.SMTP('localhost')
+    s.starttls()
     s.sendmail(sender, to, msg.as_string())
     s.quit()
