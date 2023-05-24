@@ -180,6 +180,14 @@ def process_plan(plan, options={}):
 
     # Visibilities
     try:
+        # Connect to RTS2 and enable the target
+        print('Enabling target 50')
+        response = requests.get(options.api + '/api/update_target', auth=HTTPBasicAuth(options.username, options.password), params={'id': 50, 'enabled': 1})
+        if response.status_code == 200:
+            print('Successfully enabled target 50')
+        else:
+            print('Error', response.status_code, 'enabling target 50:', response.text)
+
         # Request observatory position and night timing
         print('Computing tiles visibility')
         response = requests.get(options.api + '/api/getall', auth=HTTPBasicAuth(options.username, options.password))
