@@ -151,7 +151,7 @@ if __name__ == '__main__':
                 should_sync = True
 
             else:
-                comm.log('I', 'Pointing', gid, 'of GRANDMA event', plan['event_id'], 'with weight', weight, 'at', ra, dec, 'is not visible, but observable tonight, skipping it')
+                comm.log('I', 'Pointing', gid, 'of GRANDMA event', plan['event_name'], 'with weight', weight, 'at', ra, dec, 'is not visible, but observable tonight, skipping it')
 
             if should_sync:
                 # Sync
