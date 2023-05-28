@@ -46,7 +46,7 @@ def plan_basename(plan, base=None):
     """
 
     # Sanitize plan name to be used as filename
-    planname = plan['plan_name'].replace(' ', '_')
+    planname = plan['dateobs'] + '_' + plan['plan_name'].replace(' ', '_')
 
     if base:
         planname = os.path.join(base, planname)
@@ -168,7 +168,11 @@ def process_plan(plan, options={}):
         # Empty plan?..
         return
 
-    # Store them to a separate text file alongside with the plan
+    if options.maxtiles and len(fields) > options.maxtiles:
+        print(f"Limiting number of fields to first {options.maxtiles} from original {len(['fields'])}")
+        fields = fields[:options.maxtiles]
+
+    # Store the plan fields to a separate text file alongside with the plan
     fields_name = plan_basename(plan, base=options.base) + '.fields'
     planname = plan_basename(plan, base=options.base) + '.json' # FIXME: propagare from upper layer somehow?..
 
@@ -294,6 +298,7 @@ def listen(options={}):
             raise
         except:
             import traceback
+            print("\n", Time.now())
             traceback.print_exc()
 
             result = None
@@ -313,6 +318,12 @@ def listen(options={}):
                     # We already know this plan
                     continue
 
+                # Time since trigger
+                deltat = (Time.now() - Time(plan['dateobs'])).jd
+                if deltat > options.maxage:
+                    print(f"{deltat:.2f} days since event trigger, skipping plan {plan['plan_name']}")
+                    continue
+
                 event = query_skyportal("/api/gcn_event/" + plan['dateobs'], baseurl=options.baseurl, token=options.token)
                 if event:
                     plan['event_name'] = event['data']['aliases'][0]
@@ -323,12 +334,19 @@ def listen(options={}):
                     print('Error requesting event information from SkyPortal')
                     plan['event_name'] = 'Unknown'
 
-                print(f"New plan {plan['id']} / {plan['plan_name']} for event {plan['event_name']} localization {req['localization_id']} - {len(plan['planned_observations'])} observations")
+                print("\n", Time.now())
+                print(f"New plan {plan['id']} / {plan['plan_name']} for event {plan['event_name']} localization {req['localization_id']} - {len(plan['planned_observations'])} fields")
                 print(f"stored to {planname}")
 
                 # Store the original plan to the file system
                 os.makedirs(options.base, exist_ok=True)
                 file_write(planname, json.dumps(plan, indent=4))
+
+                # Remove the fields from previous plans for the same event
+                # FIXME: de-hardcode the filename pattern somehow?.. And make it instrument-specific?..
+                for oldname in glob.glob(os.path.join(options.base, plan['dateobs']) + '_*.fields'):
+                    print(f"Removing older fields for the same event in {oldname}")
+                    os.unlink(oldname)
 
                 # Now we should do something reasonable with the plan, e.g. notify the telescope or so
                 process_plan(plan, options=options)
@@ -360,6 +378,8 @@ if __name__ == '__main__':
     parser.add_option('-t', '--token', help='SkyPortal API access token', action='store', dest='token', default=token)
 
     parser.add_option('-d', '--delay', help='Delay between the requests', action='store', dest='delay', type='int', default=10)
+    parser.add_option('--max-age', help='Max age of the plan since trigger in days', action='store', dest='maxage', type='float', default=1.0)
+    parser.add_option('--max-tiles', help='Max number of tiles to accept', action='store', dest='maxtiles', type='int', default=0)
 
     parser.add_option('-i', '--instrument', help='Only accept packets for this instrument (SkyPortal ID)', action='store', dest='instrument', type='int', default=instrument_id)
 
