@@ -168,9 +168,9 @@ def process_plan(plan, options={}):
         # Empty plan?..
         return
 
-    if options.maxtiles and len(fields) > options.maxtiles:
-        print(f"Limiting number of fields to first {options.maxtiles} from original {len(['fields'])}")
-        fields = fields[:options.maxtiles]
+    if options.maxfields and len(fields) > options.maxfields:
+        print(f"Limiting number of fields to first {options.maxfields} from original {len(['fields'])}")
+        fields = fields[:options.maxfields]
 
     # Store the plan fields to a separate text file alongside with the plan
     fields_name = plan_basename(plan, base=options.base) + '.fields'
@@ -379,7 +379,7 @@ if __name__ == '__main__':
 
     parser.add_option('-d', '--delay', help='Delay between the requests', action='store', dest='delay', type='int', default=10)
     parser.add_option('--max-age', help='Max age of the plan since trigger in days', action='store', dest='maxage', type='float', default=1.0)
-    parser.add_option('--max-tiles', help='Max number of tiles to accept', action='store', dest='maxtiles', type='int', default=0)
+    parser.add_option('--max-fields', help='Max number of fields to accept', action='store', dest='maxfields', type='int', default=0)
 
     parser.add_option('-i', '--instrument', help='Only accept packets for this instrument (SkyPortal ID)', action='store', dest='instrument', type='int', default=instrument_id)
 
