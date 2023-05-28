@@ -26,7 +26,7 @@ from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 
-from telescope import get_horizon, send_email
+from telescope import get_horizon, send_email, send_telegram
 
 def query_skyportal(endpoint, params=None, baseurl='', token=''):
     url = urllib.parse.urljoin(baseurl, endpoint)
@@ -151,7 +151,8 @@ def plot_plan(plan, fields, options=None, visibilities=None):
     ax.axvline(date, color='gray')
     ax.axvline(datetime.datetime.utcnow(), color='black')
 
-    ax.legend(loc=1)
+    if len(fields['ra']) < 10:
+        ax.legend(loc=1)
 
     fig.tight_layout()
     canvas = FigureCanvas(fig)
@@ -238,8 +239,8 @@ def process_plan(plan, options={}):
 
     for address in options.mail:
         try:
-            subject = 'GRANDMA plan ' + plan['plan_name']
-            text = plan['plan_name'] + ': GRANDMA plan with %d pointings\n' % (len(fields['ra']))
+            subject = 'GRANDMA plan ' + plan['event_name'] + ' ' + plan['plan_name']
+            text = plan['plan_name'] + ': GRANDMA plan for ' + plan['event_name'] + ' with %d fields\n' % (len(fields['ra']))
             text += '\n' + planname + '\n';
 
             aidx = np.argsort(-fields['weight'])
@@ -247,7 +248,7 @@ def process_plan(plan, options={}):
             for i in aidx:
                 ra,dec,gid,weight = fields['ra'][i],fields['dec'][i],fields['id'][i],fields['weight'][i]
 
-                text += '  grid point %d with weight %.2g at %.2f %.2f' % (gid, weight, ra, dec)
+                text += '  field %d with weight %.2g at %.2f %.2f' % (gid, weight, ra, dec)
 
                 if visibilities and gid in visibilities:
                     vis = visibilities[gid]
@@ -273,6 +274,22 @@ def process_plan(plan, options={}):
         except:
             import traceback
             traceback.print_exc()
+
+    for cid in options.telegram_chat_ids:
+        try:
+            text = 'grandma@' + platform.node()
+            text += ' ' + plan['plan_name'] + ' for *' + plan['event_name'] + '* with %d fields\n' % (len(fields['ra']))
+            text += '\nEvent time: ' + plan['dateobs'] + '\n'
+            text += '\n' + planname + '\n';
+
+            aidx = np.argsort(-fields['weight'])
+
+            print(f'Sending message to Telegram chat {cid}')
+            send_telegram(text, token=options.telegram_bot, chatid=cid, attachments=attachments)
+        except:
+            import traceback
+            traceback.print_exc()
+
 
 def listen(options={}):
     print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
@@ -371,6 +388,17 @@ if __name__ == '__main__':
     else:
         token = None
 
+    telegram_path = os.path.join(os.path.dirname(__file__), '.telegram')
+    if os.path.exists(telegram_path):
+        # Load the token from file
+        text = file_read(telegram_path).strip()
+        s = text.split()
+        telegram_bot = s[0]
+        telegram_chat_ids = s[1:]
+    else:
+        telegram_bot = None
+        telegram_chat_ids = []
+
     parser = OptionParser(usage="usage: %prog [options] arg")
     parser.add_option('-b', '--base', help='Base path for storing plans', action='store', dest='base', default='plans')
 
@@ -387,6 +415,9 @@ if __name__ == '__main__':
     parser.add_option('-u', '--username', help='Username', action='store', dest='username', default='karpov')
     parser.add_option('-p', '--password', help='Password', action='store', dest='password', default='1')
     parser.add_option('-m', '--mail', help='Email for sending the diagnostic message', action='append', dest='mail', type='string', default=[])
+
+    parser.add_option('--telegram-bot', help='Telegram bot token', action='store', dest='telegram_bot', type='string', default=telegram_bot)
+    parser.add_option('--telegram-chat', help='Telegram chat id', action='append', dest='telegram_chat_ids', type='string', default=telegram_chat_ids)
 
     (options,args) = parser.parse_args()
 

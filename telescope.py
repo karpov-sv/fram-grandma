@@ -2,6 +2,7 @@
 
 import os, sys, glob, time
 import numpy as np
+import requests
 
 # Horizon from file
 def get_horizon(filename='/etc/rts2/horizon', min_alt=10.0):
@@ -79,3 +80,16 @@ def send_email(message, to='karpov.sv@gmail.com', sender='focuser@localhost', su
     s.starttls()
     s.sendmail(sender, to, msg.as_string())
     s.quit()
+
+def send_telegram(message, token=None, chatid=None, attachments=[]):
+    if token and chatid:
+        requests.get('https://api.telegram.org/bot' + token + '/sendMessage',
+                     data = {'chat_id': chatid, 'parse_mode': 'Markdown', 'text': message})
+
+        if attachments:
+            for filename in attachments:
+                with open(filename, 'rb') as f:
+                    content = f.read()
+                    requests.post('https://api.telegram.org/bot' + token + '/sendPhoto',
+                                  data = {'chat_id': chatid},
+                                  files = {'photo': content})
