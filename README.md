@@ -10,3 +10,7 @@ It requires SkyPortal API access token to be provided either by command-line arg
 It stores the original plans as JSON files in a dedicated folder. Alongside them, the lists of fields to be observed by the telescope are stored as simple text files.
 
  - plans.py - simple visibility checker for observing plans that uses telescope connection to get its latitude, longitude etc.
+
+ - observe_rts2.py - RTS2 script for the telescope to observe the stored plans
+
+ - export.py - exporter for FITS files from FRAM archive with proper keywords and file names for GRANDMA
