@@ -16,13 +16,14 @@ from fram import calibrate
 if __name__ == '__main__':
     from optparse import OptionParser
 
-    basedir = '~/fram/' # os.path.dirname(__file__)
+    basedir = os.path.expanduser('~/fram/') # os.path.dirname(__file__)
 
     parser = OptionParser(usage="usage: %prog [options] from to")
     parser.add_option('-d', '--db', help='Database name', action='store', dest='db', type='str', default='fram')
     parser.add_option('-H', '--host', help='Database host', action='store', dest='dbhost', type='str', default=None)
     parser.add_option('-o', '--out', help='Output directory', action='store', dest='outdir', type='str', default='output')
     parser.add_option('-n', '--obs-name', help='Observer name', action='store', dest='obsname', type='str', default='Karpov')
+    parser.add_option('-r', '--replace', help='Replace existing files', action='store_true', dest='replace', default=False)
     parser.add_option('-v', '--verbose', help='Verbose', action='store_true', dest='verbose', default=False)
 
     (options,files) = parser.parse_args()
@@ -30,7 +31,6 @@ if __name__ == '__main__':
     fram = None
 
     for filename in files:
-        image = fits.getdata(filename)
         header = fits.getheader(filename)
 
         name = header.get('OBJECT')
@@ -66,14 +66,30 @@ if __name__ == '__main__':
                             ('%03.6f' % dec).replace('.', '-')
                             ]) + '.fits'
 
-        outname = os.path.join(options.outdir, outname)
+        outdir = os.path.join(options.outdir, event_name)
+        outname = os.path.join(outdir, outname)
+
+        if os.path.exists(outname) and not options.replace:
+            print(filename, 'already exported')
+            continue
+
+        # Modify the header
+        header['USERNAME'] = options.obsname
+        header['INSTRU'] = telname
+        header['OBSDATE'] = header['DATE-OBS']
+        header['TARGET'] = event_name
+        header['TILEID'] = tile_id
+        header['STACK'] = int(nstacked > 1)
 
         print(filename, '->', outname)
 
         try:
-            os.makedirs(options.outdir)
+            os.makedirs(outdir)
         except:
             pass
+
+        # Actual processing
+        image = fits.getdata(filename)
 
         if fram is None:
             fram = Fram(dbname=options.db, dbhost=options.dbhost)
