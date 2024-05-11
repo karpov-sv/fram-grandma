@@ -76,8 +76,13 @@ if __name__ == '__main__':
     # Process all plans
     for fieldsname in fields:
         planname = fieldsname.replace('.fields', '.json')
-        with open(planname, 'r') as f:
-            plan = json.load(f)
+        if os.path.exists(planname):
+            with open(planname, 'r') as f:
+                plan = json.load(f)
+        else:
+            # No plan, assume manually specified fields
+            plan = {'event_name': 'Manual'}
+
         fields = Table.read(fieldsname, format='ascii.commented_header')
 
         comm.log('I', 'Loaded GRANDMA plan with', len(fields['ra']), 'grid pointings for event', plan['event_name'])
@@ -181,9 +186,3 @@ if __name__ == '__main__':
         if comm:
             comm.log('I', 'No more GRANDMA plans, disabling the target')
             comm.targetDisable()
-
-# Local Variables:
-# tab-width: 4
-# python-indent-offset: 4
-# indent-tabs-mode: t
-# End:
