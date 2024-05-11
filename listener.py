@@ -292,37 +292,43 @@ def process_plan(plan, options={}):
 
 
 def listen(options={}):
-    print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
+    if options.file:
+        print("Loading plan from", options.file)
+    else:
+        print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
 
-    if options.instrument:
-        print(f"Polling for instrument_id {options.instrument}")
+        if options.instrument:
+            print(f"Polling for instrument_id {options.instrument}")
 
     while True:
-        # print("Requesting plans")
+        if options.file:
+            result = json.load(open(options.file, 'r'))
+        else:
+            # print("Requesting plans")
 
-        now = Time.now()
-        start = now - TimeDelta(1*u.day)
+            now = Time.now()
+            start = now - TimeDelta(1*u.day)
 
-        params = {"instrumentID": options.instrument,
-                  "startDate": start.isot,
-                  "endDate": now.isot,
-                  "status": "complete",
-                  "includePlannedObservations" : True}
+            params = {"instrumentID": options.instrument,
+                      "startDate": start.isot,
+                      "endDate": now.isot,
+                      "status": "complete",
+                      "includePlannedObservations" : True}
 
-        try:
-            result = query_skyportal("/api/observation_plan", params=params, baseurl=options.baseurl, token=options.token)
-        except KeyboardInterrupt:
-            raise
-        except:
-            import traceback
-            print("\n", Time.now())
-            traceback.print_exc()
+            try:
+                result = query_skyportal("/api/observation_plan", params=params, baseurl=options.baseurl, token=options.token)
+            except KeyboardInterrupt:
+                raise
+            except:
+                import traceback
+                print("\n", Time.now())
+                traceback.print_exc()
 
-            result = None
+                result = None
 
-        if not result:
-            time.sleep(options.delay)
-            continue
+            if not result:
+                time.sleep(options.delay)
+                continue
 
         # Now we iterate all observing plan requests
         for req in result["data"]["requests"]:
@@ -367,6 +373,9 @@ def listen(options={}):
 
                 # Now we should do something reasonable with the plan, e.g. notify the telescope or so
                 process_plan(plan, options=options)
+
+        if options.file:
+            break
 
         time.sleep(options.delay)
 
@@ -415,6 +424,8 @@ if __name__ == '__main__':
     parser.add_option('-u', '--username', help='Username', action='store', dest='username', default='karpov')
     parser.add_option('-p', '--password', help='Password', action='store', dest='password', default='1')
     parser.add_option('-m', '--mail', help='Email for sending the diagnostic message', action='append', dest='mail', type='string', default=[])
+
+    parser.add_option('-f', '--file', help='Local file to process', action='store', dest='file', type='string', default=None)
 
     parser.add_option('--telegram-bot', help='Telegram bot token', action='store', dest='telegram_bot', type='string', default=telegram_bot)
     parser.add_option('--telegram-chat', help='Telegram chat id', action='append', dest='telegram_chat_ids', type='string', default=telegram_chat_ids)
