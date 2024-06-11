@@ -73,7 +73,8 @@ def plan_fields(plan):
                     for _ in plan['planned_observations']])
 
     if len(fields):
-        fields = fields[['id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
+        fields = fields[['field_id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
+        fields.rename_column('field_id', 'id') # Request from Michael to use field_id instead of id
 
     return fields
 
