@@ -350,7 +350,11 @@ def listen(options={}):
 
                 event = query_skyportal("/api/gcn_event/" + plan['dateobs'], baseurl=options.baseurl, token=options.token)
                 if event:
-                    plan['event_name'] = event['data']['aliases'][0]
+                    if len(event['data']['aliases']):
+                        plan['event_name'] = event['data']['aliases'][0]
+                    else:
+                        plan['event_name'] = event['data']['dateobs']
+
                     if plan['event_name'].startswith('LVC#'):
                         plan['event_name'] = plan['event_name'][4:]
 
