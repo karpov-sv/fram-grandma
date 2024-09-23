@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_option('-d', '--db', help='Database name', action='store', dest='db', type='str', default='fram')
     parser.add_option('-H', '--host', help='Database host', action='store', dest='dbhost', type='str', default=None)
     parser.add_option('-o', '--out', help='Output directory', action='store', dest='outdir', type='str', default='output')
+    parser.add_option('-e', '--event-name', help='Event name', action='store', dest='event', type='str', default=None)
     parser.add_option('-n', '--obs-name', help='Observer name', action='store', dest='obsname', type='str', default='Karpov')
     parser.add_option('-r', '--replace', help='Replace existing files', action='store_true', dest='replace', default=False)
     parser.add_option('-v', '--verbose', help='Verbose', action='store_true', dest='verbose', default=False)
@@ -37,7 +38,7 @@ if __name__ == '__main__':
 
         if name.startswith('GRANDMA'):
             s = name.split('_')
-            event_name = s[1]
+            event_name = options.event if options.event else s[1]
             tile_id = int(s[2])
         else:
             continue
@@ -121,5 +122,8 @@ if __name__ == '__main__':
             flat = fits.getdata(basedir + '/' + flatname)
 
             image *= np.nanmedian(flat)/flat
+
+        header['DARKNAME'] = darkname
+        header['FLATNAME'] = flatname
 
         fits.writeto(outname, image, header, overwrite=True)
