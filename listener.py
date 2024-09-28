@@ -53,6 +53,7 @@ def plan_basename(plan, base=None):
 
     return planname
 
+
 # Simple writing of some data to file
 def file_write(filename, contents=None, append=False):
     """
@@ -63,29 +64,40 @@ def file_write(filename, contents=None, append=False):
         if contents is not None:
             f.write(contents)
 
+
 def file_read(filename):
     with open(filename, 'r') as f:
         return f.read()
 
-def plan_fields(plan):
+
+def plan_fields(plan, repeat=1):
     # Individual fields inside the plan
-    fields = Table([{**_['field'],  **{__: _[__] for __ in ['weight', 'exposure_time', 'filt']}}
-                    for _ in plan['planned_observations']])
+    fields = [
+        {**_['field'],  **{__: _[__] for __ in ['weight', 'exposure_time', 'filt']}}
+        for _ in plan['planned_observations']
+    ]
+    # fields = [_ for _ in fields for __ in range(repeat)]
+    fields = Table(fields)
 
     if len(fields):
         fields = fields[['field_id', 'ra', 'dec', 'weight', 'filt', 'exposure_time']]
         fields.rename_column('field_id', 'id') # Request from Michael to use field_id instead of id
+        fields['repeat'] = repeat
 
     return fields
 
-def plot_plan(plan, fields, options=None, visibilities=None):
+
+def plot_fields(fields, name=None, dateobs=None, basename=None, options=None, visibilities=None):
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
     from matplotlib.dates import DateFormatter
 
     import ephem
 
-    date = Time(plan['dateobs']).datetime # datetime.datetime.utcnow()
+    if dateobs:
+        date = Time(dateobs).datetime
+    else:
+        date = datetime.datetime.utcnow()
 
     obs = ephem.Observer()
     obs.date = date
@@ -96,10 +108,8 @@ def plot_plan(plan, fields, options=None, visibilities=None):
 
     filenames = []
 
-    basename = plan_basename(plan, base=options.base)
-
     # Map
-    filename = '%s_map.jpg' % basename
+    filename = basename + '_map.jpg'
 
     fig = Figure(facecolor='white', dpi=72, figsize=(12,6), tight_layout=True)
     ax = fig.add_subplot(111, projection='mollweide')
@@ -116,7 +126,7 @@ def plot_plan(plan, fields, options=None, visibilities=None):
     ax.scatter((np.mod(np.rad2deg(moon.ra)+180.0, 360.0)-180.0)*np.pi/180, np.rad2deg(moon.dec)*np.pi/180, s=1200, marker='o', color='lightgray', edgecolor='black')
     ax.text((np.mod(np.rad2deg(moon.ra)+180.0, 360.0)-180.0)*np.pi/180, np.rad2deg(moon.dec)*np.pi/180, 'Moon', color='black', va='center', ha='center')
 
-    ax.set_title('%s %s: %d pointings' % (plan['event_name'], plan['plan_name'], len(fields['ra'])))
+    ax.set_title('%s: %d pointings' % (name, len(fields['ra'])))
 
     fig.tight_layout()
     canvas = FigureCanvas(fig)
@@ -125,7 +135,7 @@ def plot_plan(plan, fields, options=None, visibilities=None):
     filenames.append(filename)
 
     # Visibilities and altitudes
-    filename = '%s_visibility.jpg' % basename
+    filename = basename + '_visibility.jpg'
 
     fig = Figure(facecolor='white', dpi=72, figsize=(12,6), tight_layout=True)
     ax = fig.add_subplot(111)
@@ -140,7 +150,7 @@ def plot_plan(plan, fields, options=None, visibilities=None):
             s = ax.plot(ts, vis['alt'], '.-', alpha=0.1)
             ax.plot(ts[idx], vis['alt'][idx], '.', alpha=0.9, color=s[0].get_color(), label="Tile %d, p=%.2g" % (gid, fields['weight'][_]))
 
-    ax.set_title('%s %s: %d pointings' % (plan['event_name'], plan['plan_name'], len(fields['ra'])))
+    ax.set_title('%s: %d pointings' % (name, len(fields['ra'])))
 
     ax.set_ylim(0, 90)
     ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
@@ -163,20 +173,14 @@ def plot_plan(plan, fields, options=None, visibilities=None):
 
     return filenames
 
-def process_plan(plan, options={}):
-    fields = plan_fields(plan)
 
-    if not len(fields):
-        # Empty plan?..
-        return
-
+def process_fields(fields, name=None, dateobs=None, basename=None, options={}):
     if options.maxfields and len(fields) > options.maxfields:
-        print(f"Limiting number of fields to first {options.maxfields} from original {len(['fields'])}")
+        print(f"Limiting number of fields to first {options.maxfields} from original {len(fields['ra'])}")
         fields = fields[:options.maxfields]
 
     # Store the plan fields to a separate text file alongside with the plan
-    fields_name = plan_basename(plan, base=options.base) + '.fields'
-    planname = plan_basename(plan, base=options.base) + '.json' # FIXME: propagare from upper layer somehow?..
+    fields_name = basename + '.fields'
 
     fields.write(fields_name, format='ascii.commented_header', overwrite=True)
     print(f"{len(fields)} fields to be observed stored to {fields_name}")
@@ -232,7 +236,14 @@ def process_plan(plan, options={}):
     # Diagnostic plots
     try:
         print('Generating diagnostic plots')
-        attachments = plot_plan(plan, fields, options=options, visibilities=visibilities)
+        attachments = plot_fields(
+            fields,
+            name=name,
+            basename=basename,
+            dateobs=dateobs,
+            options=options,
+            visibilities=visibilities
+        )
     except:
         import traceback
         traceback.print_exc()
@@ -240,9 +251,8 @@ def process_plan(plan, options={}):
 
     for address in options.mail:
         try:
-            subject = 'GRANDMA plan ' + plan['event_name'] + ' ' + plan['plan_name']
-            text = plan['plan_name'] + ': GRANDMA plan for ' + plan['event_name'] + ' with %d fields\n' % (len(fields['ra']))
-            text += '\n' + planname + '\n';
+            subject = 'GRANDMA ' + name
+            text = name + ': GRANDMA plan with %d fields\n' % (len(fields['ra']))
 
             aidx = np.argsort(-fields['weight'])
 
@@ -271,7 +281,7 @@ def process_plan(plan, options={}):
 
             print(f'Sending e-mail to {address}')
             sender = os.getlogin() + '@' + platform.node()
-            send_email(text, to=address, sender=sender, subject=subject, attachments=attachments + [planname])
+            send_email(text, to=address, sender=sender, subject=subject, attachments=attachments)
         except:
             import traceback
             traceback.print_exc()
@@ -279,9 +289,9 @@ def process_plan(plan, options={}):
     for cid in options.telegram_chat_ids:
         try:
             text = 'grandma@' + platform.node()
-            text += ' ' + plan['plan_name'] + ' for *' + plan['event_name'] + '* with %d fields\n' % (len(fields['ra']))
-            text += '\nEvent time: ' + plan['dateobs'] + '\n'
-            text += '\n' + planname + '\n';
+            text += ' plan for *' + name + '* with %d fields\n' % (len(fields['ra']))
+            if dateobs:
+                text += '\nEvent time: ' + dateobs + '\n'
 
             aidx = np.argsort(-fields['weight'])
 
@@ -292,97 +302,190 @@ def process_plan(plan, options={}):
             traceback.print_exc()
 
 
+def process_plans(result, options={}):
+    for req in result["data"]["requests"]:
+        # print('Localization', req['localization_id'], 'event', req['gcnevent_id'])
+
+        for plan in req['observation_plans']:
+            basename = plan_basename(plan, base=options.base)
+            planname = basename + '.json'
+
+            if os.path.exists(planname):
+                # We already know this plan
+                continue
+
+            # Time since trigger
+            deltat = (Time.now() - Time(plan['dateobs'])).jd
+            if deltat > options.maxage:
+                print(f"{deltat:.2f} days since event trigger, skipping plan {plan['plan_name']}")
+                continue
+
+            event = query_skyportal("/api/gcn_event/" + plan['dateobs'], baseurl=options.baseurl, token=options.token)
+            if event:
+                if len(event['data']['aliases']):
+                    plan['event_name'] = event['data']['aliases'][0]
+                else:
+                    plan['event_name'] = event['data']['dateobs']
+
+                if plan['event_name'].startswith('LVC#'):
+                    plan['event_name'] = plan['event_name'][4:]
+
+            else:
+                print('Error requesting event information from SkyPortal')
+                plan['event_name'] = 'Unknown'
+
+            print("\n", Time.now())
+            print(f"New plan {plan['id']} / {plan['plan_name']} for event {plan['event_name']} localization {req['localization_id']} - {len(plan['planned_observations'])} fields")
+            print(f"stored to {planname}")
+
+            # Store the original plan to the file system
+            os.makedirs(options.base, exist_ok=True)
+            file_write(planname, json.dumps(plan, indent=4))
+
+            # Remove the fields from previous plans for the same event
+            # FIXME: de-hardcode the filename pattern somehow?.. And make it instrument-specific?..
+            for oldname in glob.glob(os.path.join(options.base, plan['dateobs']) + '_*.fields'):
+                print(f"Removing older fields for the same event in {oldname}")
+                os.unlink(oldname)
+
+            # Now we should do something reasonable with the plan, e.g. notify the telescope or so
+            fields = plan_fields(plan, repeat=options.repeat)
+
+            process_fields(
+                fields,
+                name=plan['event_name'] + ' ' + plan['plan_name'],
+                dateobs=plan['dateobs'],
+                basename=basename,
+                options=options
+            )
+
+
+def process_followup_requests(result, options={}):
+    for req in result["data"]["followup_requests"]:
+        basename = req['created_at'] + '_' + req['obj_id']
+        if options.base:
+            basename = os.path.join(options.base, basename)
+
+        reqname = basename + '.json'
+        if os.path.exists(reqname):
+            # We already know this request
+            continue
+
+        print("\n", Time.now())
+        print(f"New follow-up request {req['created_at']} for source {req['obj_id']}")
+        print(f"stored to {reqname}")
+
+        # For compatibility
+        req['event_name'] = req['obj_id']
+
+        # Store the original plan to the file system
+        os.makedirs(options.base, exist_ok=True)
+        file_write(reqname, json.dumps(req, indent=4))
+
+        # Remove the fields from previous plans for the same source
+        # FIXME: de-hardcode the filename pattern somehow?.. And make it instrument-specific?..
+        for oldname in glob.glob(os.path.join(options.base, '*_' + req['obj_id']) + '.fields'):
+            print(f"Removing older fields for the same source in {oldname}")
+            os.unlink(oldname)
+
+        # Now actually process the request
+        fields = []
+
+        for iter in range(req['payload']['exposure_counts']):
+            for fid in req['payload']['observation_choices']:
+                fields.append({
+                    'id': 0,
+                    'ra': req['obj']['ra'],
+                    'dec': req['obj']['dec'],
+                    'weight': 1,
+                    'filt': fid,
+                    'exposure_time': req['payload']['exposure_time'],
+                    'repeat': 1,
+                })
+
+        fields = Table(fields)
+        process_fields(
+            fields,
+            name=req['obj_id'],
+            basename=basename,
+            options=options
+        )
+
+
 def listen(options={}):
     if options.file:
         print("Loading plan from", options.file)
-    else:
-        print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
+        result = json.load(open(options.file, 'r'))
+        if 'data' in result:
+            # Raw payload
+            process_plans(result, options)
+        else:
+            # Individual plan stored by us
+            process_plans({'data':{'requests':[{'observation_plans':[result]}]}}, options)
+        return
 
-        if options.instrument:
-            print(f"Polling for instrument_id {options.instrument}")
+    print(f"Polling SkyPortal at {options.baseurl} every {options.delay} seconds")
+
+    if options.instrument:
+        print(f"Polling for instrument_id {options.instrument}")
 
     while True:
-        if options.file:
-            result = json.load(open(options.file, 'r'))
-        else:
-            # print("Requesting plans")
+        # print("Requesting plans")
 
-            now = Time.now()
-            start = now - TimeDelta(1*u.day)
+        # Time window - anything created during last day
+        now = Time.now()
+        start = now - TimeDelta(1*u.day)
 
-            params = {"instrumentID": options.instrument,
-                      "startDate": start.isot,
-                      "endDate": now.isot,
-                      "status": "complete",
-                      "includePlannedObservations" : True}
+        # Observation plans
+        params = {
+            "instrumentID": options.instrument,
+            "startDate": start.isot,
+            "endDate": now.isot,
+            "status": "complete",
+            "includePlannedObservations" : True
+        }
 
-            try:
-                result = query_skyportal("/api/observation_plan", params=params, baseurl=options.baseurl, token=options.token)
-            except KeyboardInterrupt:
-                raise
-            except:
-                import traceback
-                print("\n", Time.now())
-                traceback.print_exc()
+        try:
+            result = query_skyportal(
+                "/api/observation_plan",
+                params=params,
+                baseurl=options.baseurl,
+                token=options.token
+            )
+            # Now we iterate all observing plan requests
+            process_plans(result, options)
+        except KeyboardInterrupt:
+            raise
+        except:
+            import traceback
+            print("\n", Time.now())
+            traceback.print_exc()
 
-                result = None
+        # Follow-up requests
+        params = {
+            "instrumentID": options.instrument,
+            "startDate": start.isot,
+            "status": "submitted",
+        }
 
-            if not result:
-                time.sleep(options.delay)
-                continue
-
-        # Now we iterate all observing plan requests
-        for req in result["data"]["requests"]:
-            # print('Localization', req['localization_id'], 'event', req['gcnevent_id'])
-
-            for plan in req['observation_plans']:
-                planname = plan_basename(plan, base=options.base) + '.json'
-
-                if os.path.exists(planname):
-                    # We already know this plan
-                    continue
-
-                # Time since trigger
-                deltat = (Time.now() - Time(plan['dateobs'])).jd
-                if deltat > options.maxage:
-                    print(f"{deltat:.2f} days since event trigger, skipping plan {plan['plan_name']}")
-                    continue
-
-                event = query_skyportal("/api/gcn_event/" + plan['dateobs'], baseurl=options.baseurl, token=options.token)
-                if event:
-                    if len(event['data']['aliases']):
-                        plan['event_name'] = event['data']['aliases'][0]
-                    else:
-                        plan['event_name'] = event['data']['dateobs']
-
-                    if plan['event_name'].startswith('LVC#'):
-                        plan['event_name'] = plan['event_name'][4:]
-
-                else:
-                    print('Error requesting event information from SkyPortal')
-                    plan['event_name'] = 'Unknown'
-
-                print("\n", Time.now())
-                print(f"New plan {plan['id']} / {plan['plan_name']} for event {plan['event_name']} localization {req['localization_id']} - {len(plan['planned_observations'])} fields")
-                print(f"stored to {planname}")
-
-                # Store the original plan to the file system
-                os.makedirs(options.base, exist_ok=True)
-                file_write(planname, json.dumps(plan, indent=4))
-
-                # Remove the fields from previous plans for the same event
-                # FIXME: de-hardcode the filename pattern somehow?.. And make it instrument-specific?..
-                for oldname in glob.glob(os.path.join(options.base, plan['dateobs']) + '_*.fields'):
-                    print(f"Removing older fields for the same event in {oldname}")
-                    os.unlink(oldname)
-
-                # Now we should do something reasonable with the plan, e.g. notify the telescope or so
-                process_plan(plan, options=options)
-
-        if options.file:
-            break
+        try:
+            result = query_skyportal(
+                "/api/followup_request",
+                params=params,
+                baseurl=options.baseurl,
+                token=options.token
+            )
+            # Now we iterate all observing plan requests
+            process_followup_requests(result, options)
+        except KeyboardInterrupt:
+            raise
+        except:
+            import traceback
+            print("\n", Time.now())
+            traceback.print_exc()
 
         time.sleep(options.delay)
+
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -422,6 +525,7 @@ if __name__ == '__main__':
     parser.add_option('-d', '--delay', help='Delay between the requests', action='store', dest='delay', type='int', default=10)
     parser.add_option('--max-age', help='Max age of the plan since trigger in days', action='store', dest='maxage', type='float', default=1.0)
     parser.add_option('--max-fields', help='Max number of fields to accept', action='store', dest='maxfields', type='int', default=0)
+    parser.add_option('--repeat', help='Number of images per tile', action='store', dest='repeat', type='int', default=2)
 
     parser.add_option('-i', '--instrument', help='Only accept packets for this instrument (SkyPortal ID)', action='store', dest='instrument', type='int', default=instrument_id)
 
