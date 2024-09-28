@@ -116,11 +116,20 @@ if __name__ == '__main__':
 
         for i in aidx:
             ra,dec,gid,weight = fields['ra'][i],fields['dec'][i],fields['id'][i],fields['weight'][i]
-            # status,revision = fields['Event_status'],fields['Revision']
+            fid,repeat = fields['filt'][i],fields['repeat'][i]
             should_sync = False
 
             if is_visible(ra, dec):
                 comm.log('I', 'Pointing to GRANDMA event', plan['event_name'], 'grid point', gid, 'with weight', weight, 'at', ra, dec)
+
+                fname = {
+                    'bessellb': 'B',
+                    'bessellv': 'V',
+                    'bessellr': 'R',
+                    'ps1::open': 'N',
+                }.get(fid, options.filter)
+
+                comm.setValue('FILTER', fname)
 
                 try:
                     comm.radec(ra, dec)
@@ -134,7 +143,7 @@ if __name__ == '__main__':
 
                 comm.setOwnValue('OBJECT', 'GRANDMA_%s_%d' % (plan['event_name'], gid))
 
-                for _ in xrange(options.nframes):
+                for _ in xrange(repeat):
                     try:
                         img = comm.exposure()
 
