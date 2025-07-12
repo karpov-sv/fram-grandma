@@ -79,6 +79,13 @@ if __name__ == '__main__':
         if os.path.exists(planname):
             with open(planname, 'r') as f:
                 plan = json.load(f)
+                validity = [Time(plan[_]) for _ in ['validity_window_start', 'validity_window_end']]
+
+                if Time.now() > validity[1]:
+                    comm.log('I', 'Expiring plan for event', plan['event_name'], 'which was valid until', validity[1])
+                    os.unlink(fieldsname)
+
+                continue
         else:
             # No plan, assume manually specified fields
             plan = {'event_name': 'Manual'}
