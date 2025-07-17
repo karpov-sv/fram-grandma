@@ -79,7 +79,13 @@ if __name__ == '__main__':
         if os.path.exists(planname):
             with open(planname, 'r') as f:
                 plan = json.load(f)
-                validity = [Time(plan[_]) for _ in ['validity_window_start', 'validity_window_end']]
+                if 'validity_window_start' in plan:
+                    validity = [Time(plan[_]) for _ in ['validity_window_start', 'validity_window_end']]
+                elif 'start_date' in plan['payload']:
+                    validity = [Time(plan['payload'][_]) for _ in ['start_date', 'end_date']]
+                else:
+                    comm.log('I', 'Unknown plan format for event', plan['event_name'])
+                    continue
 
                 if Time.now() > validity[1]:
                     comm.log('I', 'Expiring plan for event', plan['event_name'], 'which was valid until', validity[1])
