@@ -90,8 +90,8 @@ if __name__ == '__main__':
                 if Time.now() > validity[1]:
                     comm.log('I', 'Expiring plan for event', plan['event_name'], 'which was valid until', validity[1])
                     os.unlink(fieldsname)
+                    continue
 
-                continue
         else:
             # No plan, assume manually specified fields
             plan = {'event_name': 'Manual'}
